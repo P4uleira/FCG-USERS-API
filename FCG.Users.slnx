@@ -1,2 +1,12 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FCG.Users.Api/FCG.Users.Api.csproj" />
+    <Project Path="src/FCG.Users.Application/FCG.Users.Application.csproj" />
+    <Project Path="src/FCG.Users.Contracts/FCG.Users.Contracts.csproj" />
+    <Project Path="src/FCG.Users.Domain/FCG.Users.Domain.csproj" />
+    <Project Path="src/FCG.Users.Infrastructure/FCG.Users.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FCG.Users.Tests/FCG.Users.Tests.csproj" />
+  </Folder>
 </Solution>
