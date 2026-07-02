@@ -12,13 +12,18 @@ public class User
     public UserRole Role { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
-    private User() { }
+    private User()
+    {
+        Name = string.Empty;
+        Email = null!;
+        PasswordHash = string.Empty;
+    }
 
     private User(string name, Email email, string passwordHash, UserRole role)
     {
         Id = Guid.NewGuid();
         Name = name;
-        Email = email;
+        Email = email!;
         PasswordHash = passwordHash;
         Role = role;
         CreatedAt = DateTime.UtcNow;

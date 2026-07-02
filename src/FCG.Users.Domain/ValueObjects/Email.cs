@@ -16,7 +16,7 @@ public sealed class Email
         if (string.IsNullOrWhiteSpace(address))
             throw new ArgumentException("E-mail é obrigatório.");
 
-        address = address.Trim().ToLowerInvariant();
+        address = address.Trim();
 
         if (!Regex.IsMatch(address, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
             throw new ArgumentException("E-mail inválido.");
