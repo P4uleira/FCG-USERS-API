@@ -1,16 +1,20 @@
 using FCG.Users.Domain.Entities;
 using FCG.Users.Domain.Interfaces.Repositories;
 using MediatR;
+using FCG.Users.Contracts.Events;
+using MassTransit;
 
 namespace FCG.Users.Application.Commands.CreateUser;
 
 public sealed class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, Guid>
 {
     private readonly IUserRepository _userRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-    public CreateUserCommandHandler(IUserRepository userRepository)
+    public CreateUserCommandHandler(IUserRepository userRepository, IPublishEndpoint publishEndpoint)
     {
         _userRepository = userRepository;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<Guid> Handle(CreateUserCommand request, CancellationToken cancellationToken)
@@ -28,6 +32,17 @@ public sealed class CreateUserCommandHandler : IRequestHandler<CreateUserCommand
         );
 
         await _userRepository.AddAsync(user, cancellationToken);
+
+        await _publishEndpoint.Publish(
+            new UserCreatedEvent(
+                user.Id,
+                user.Name,
+                user.Email.Address,
+                user.Role.ToString(),
+                user.CreatedAt
+            ),
+            cancellationToken
+        );
 
         return user.Id;
     }
