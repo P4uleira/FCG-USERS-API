@@ -1,11 +1,11 @@
 using FCG.Users.Domain.Entities;
-using FCG.Users.Domain.Interfaces;
+using FCG.Users.Domain.Interfaces.Repositories;
 using FCG.Users.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCG.Users.Infrastructure.Repositories;
 
-public class UserRepository : IUserRepository
+public sealed class UserRepository : IUserRepository
 {
     private readonly UsersDbContext _context;
 
@@ -20,11 +20,24 @@ public class UserRepository : IUserRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
+    }
+
+    public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .AnyAsync(user => user.Email.Address == email, cancellationToken);
+    }
+
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = email.Trim();
-
         return await _context.Users
-            .FirstOrDefaultAsync(user => user.Email.Address == normalizedEmail, cancellationToken);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(user => user.Email.Address == email, cancellationToken);
     }
 }

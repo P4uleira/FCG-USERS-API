@@ -1,5 +1,5 @@
 using FCG.Users.Domain.Entities;
-using FCG.Users.Domain.Interfaces;
+using FCG.Users.Domain.Interfaces.Repositories;
 using MediatR;
 
 namespace FCG.Users.Application.Commands.CreateUser;

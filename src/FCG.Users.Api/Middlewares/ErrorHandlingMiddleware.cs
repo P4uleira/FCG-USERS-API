@@ -1,0 +1,66 @@
+using System.Net;
+using System.Text.Json;
+
+namespace FCG.Users.Api.Middlewares;
+
+public sealed class ErrorHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<ErrorHandlingMiddleware> _logger;
+    private readonly IWebHostEnvironment _environment;
+
+    public ErrorHandlingMiddleware(
+        RequestDelegate next,
+        ILogger<ErrorHandlingMiddleware> logger,
+        IWebHostEnvironment environment)
+    {
+        _next = next;
+        _logger = logger;
+        _environment = environment;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (ArgumentException ex)
+        {
+            await HandleExceptionAsync(context, ex, HttpStatusCode.BadRequest);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            await HandleExceptionAsync(context, ex, HttpStatusCode.NotFound);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleExceptionAsync(context, ex, HttpStatusCode.Unauthorized);
+        }
+        catch (Exception ex)
+        {
+            await HandleExceptionAsync(context, ex, HttpStatusCode.InternalServerError);
+        }
+    }
+
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception, HttpStatusCode statusCode)
+    {
+        _logger.LogError(
+            exception,
+            "Erro na requisição {Method} {Path}",
+            context.Request.Method,
+            context.Request.Path);
+
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = (int)statusCode;
+
+        var response = new
+        {
+            statusCode = context.Response.StatusCode,
+            message = exception.Message,
+            detail = _environment.IsDevelopment() ? exception.StackTrace : null
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+    }
+}
