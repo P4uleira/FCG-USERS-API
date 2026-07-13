@@ -27,17 +27,42 @@ public sealed class UserRepository : IUserRepository
             .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
     }
 
-    public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByEmailAsync(
+    string email,
+    CancellationToken cancellationToken = default)
     {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
         return await _context.Users
             .AsNoTracking()
-            .AnyAsync(user => user.Email.Address == email, cancellationToken);
+            .AnyAsync(
+                user => user.Email.Address.ToLower() == normalizedEmail,
+                cancellationToken);
     }
 
-    public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+    public async Task<User?> GetByEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        return await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                user => user.Email.Address.ToLower() == normalizedEmail,
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<User>> GetAllAsync(
+    CancellationToken cancellationToken = default)
     {
         return await _context.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(user => user.Email.Address == email, cancellationToken);
+            .OrderBy(user => user.Name)
+            .ThenBy(user => user.Email.Address)
+            .ToListAsync(cancellationToken);
+
+
     }
+
 }

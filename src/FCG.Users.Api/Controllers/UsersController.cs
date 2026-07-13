@@ -1,6 +1,8 @@
 using FCG.Users.Application.Commands.CreateUser;
+using FCG.Users.Application.Queries.GetAllUsers;
 using FCG.Users.Application.Queries.GetUserById;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FCG.Users.Api.Controllers;
@@ -27,6 +29,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Create(
         [FromBody] CreateUserCommand command,
         CancellationToken cancellationToken)
@@ -44,11 +47,35 @@ public sealed class UsersController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var user = await _mediator.Send(new GetUserByIdQuery(id), cancellationToken);
+        var user = await _mediator.Send(
+            new GetUserByIdQuery(id),
+            cancellationToken);
 
         if (user is null)
-            return NotFound(new { message = "Usuário não encontrado." });
+        {
+            return NotFound(new
+            {
+                message = "Usuário não encontrado."
+            });
+        }
 
         return Ok(user);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet]
+    [ProducesResponseType(
+        typeof(IReadOnlyCollection<UserResponse>),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAll(
+        CancellationToken cancellationToken)
+    {
+        var users = await _mediator.Send(
+            new GetAllUsersQuery(),
+            cancellationToken);
+
+        return Ok(users);
     }
 }

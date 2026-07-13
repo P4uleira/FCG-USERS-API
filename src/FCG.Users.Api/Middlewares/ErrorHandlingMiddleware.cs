@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using FCG.Users.Application.Exceptions;
 
 namespace FCG.Users.Api.Middlewares;
 
@@ -25,31 +26,67 @@ public sealed class ErrorHandlingMiddleware
         {
             await _next(context);
         }
+        catch (InvalidCredentialsException ex)
+        {
+            await HandleExceptionAsync(
+                context,
+                ex,
+                HttpStatusCode.Unauthorized,
+                logAsWarning: true);
+        }
         catch (ArgumentException ex)
         {
-            await HandleExceptionAsync(context, ex, HttpStatusCode.BadRequest);
+            await HandleExceptionAsync(
+                context,
+                ex,
+                HttpStatusCode.BadRequest);
         }
         catch (KeyNotFoundException ex)
         {
-            await HandleExceptionAsync(context, ex, HttpStatusCode.NotFound);
+            await HandleExceptionAsync(
+                context,
+                ex,
+                HttpStatusCode.NotFound);
         }
         catch (UnauthorizedAccessException ex)
         {
-            await HandleExceptionAsync(context, ex, HttpStatusCode.Unauthorized);
+            await HandleExceptionAsync(
+                context,
+                ex,
+                HttpStatusCode.Unauthorized,
+                logAsWarning: true);
         }
         catch (Exception ex)
         {
-            await HandleExceptionAsync(context, ex, HttpStatusCode.InternalServerError);
+            await HandleExceptionAsync(
+                context,
+                ex,
+                HttpStatusCode.InternalServerError);
         }
     }
 
-    private async Task HandleExceptionAsync(HttpContext context, Exception exception, HttpStatusCode statusCode)
+    private async Task HandleExceptionAsync(
+        HttpContext context,
+        Exception exception,
+        HttpStatusCode statusCode,
+        bool logAsWarning = false)
     {
-        _logger.LogError(
-            exception,
-            "Erro na requisição {Method} {Path}",
-            context.Request.Method,
-            context.Request.Path);
+        if (logAsWarning)
+        {
+            _logger.LogWarning(
+                "Falha na requisição {Method} {Path}: {Message}",
+                context.Request.Method,
+                context.Request.Path,
+                exception.Message);
+        }
+        else
+        {
+            _logger.LogError(
+                exception,
+                "Erro na requisição {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
+        }
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
@@ -58,9 +95,12 @@ public sealed class ErrorHandlingMiddleware
         {
             statusCode = context.Response.StatusCode,
             message = exception.Message,
-            detail = _environment.IsDevelopment() ? exception.StackTrace : null
+            detail = _environment.IsDevelopment()
+                ? exception.StackTrace
+                : null
         };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        await context.Response.WriteAsync(
+            JsonSerializer.Serialize(response));
     }
 }

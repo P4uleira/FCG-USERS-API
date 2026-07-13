@@ -29,7 +29,11 @@ public class User
         CreatedAt = DateTime.UtcNow;
     }
 
-    public static User Create(string name, string email, string passwordHash, UserRole role = UserRole.User)
+    public static User Create(
+    string name,
+    string email,
+    string passwordHash,
+    UserRole role = UserRole.User)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Nome é obrigatório.");
