@@ -34,13 +34,15 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "FCG Users API",
         Version = "v1",
-        Description = "Microsserviço de usuários, autenticação e autorização da FIAP Cloud Games."
+        Description =
+            "Microsserviço de usuários, autenticação e autorização da FIAP Cloud Games."
     });
 
     options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Description = "Informe somente o token JWT. O Swagger adicionará automaticamente o prefixo Bearer.",
+        Description =
+            "Informe somente o token JWT. O Swagger adicionará automaticamente o prefixo Bearer.",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
@@ -101,6 +103,7 @@ builder.Services
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
+
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSettings.Key)),
 
@@ -133,11 +136,14 @@ builder.Services.AddMassTransit(config =>
         var rabbitMqConfig =
             builder.Configuration.GetSection("RabbitMq");
 
-        cfg.Host(rabbitMqConfig["Host"], "/", host =>
-        {
-            host.Username(rabbitMqConfig["Username"]!);
-            host.Password(rabbitMqConfig["Password"]!);
-        });
+        cfg.Host(
+            rabbitMqConfig["Host"],
+            "/",
+            host =>
+            {
+                host.Username(rabbitMqConfig["Username"]!);
+                host.Password(rabbitMqConfig["Password"]!);
+            });
     });
 });
 
@@ -155,12 +161,29 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-app.UseHttpsRedirection();
+var isRunningInContainer =
+    string.Equals(
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+
+if (!isRunningInContainer)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/health", () =>
+    Results.Ok(new
+    {
+        service = "UsersAPI",
+        status = "Healthy"
+    }))
+    .AllowAnonymous();
 
 #endregion
 
