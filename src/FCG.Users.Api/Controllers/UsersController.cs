@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace FCG.Users.Api.Controllers;
 
-[Authorize]
 [ApiController]
 [Route("api/users")]
 public sealed class UsersController : ControllerBase
