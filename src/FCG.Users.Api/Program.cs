@@ -5,8 +5,10 @@ using FCG.Users.Api.Middlewares;
 using FCG.Users.Application;
 using FCG.Users.Application.Settings;
 using FCG.Users.Infrastructure;
+using FCG.Users.Infrastructure.Data;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
@@ -38,21 +40,25 @@ builder.Services.AddSwaggerGen(options =>
             "Microsserviço de usuários, autenticação e autorização da FIAP Cloud Games."
     });
 
-    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Description =
-            "Informe somente o token JWT. O Swagger adicionará automaticamente o prefixo Bearer.",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
+    options.AddSecurityDefinition(
+        "bearer",
+        new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Description =
+                "Informe somente o token JWT. O Swagger adicionará automaticamente o prefixo Bearer.",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT"
+        });
 
     options.AddSecurityRequirement(document =>
         new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("bearer", document)] = []
+            [new OpenApiSecuritySchemeReference(
+                "bearer",
+                document)] = []
         });
 });
 
@@ -66,7 +72,8 @@ builder.Services.AddApplication();
 
 #region Infrastructure
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(
+    builder.Configuration);
 
 #endregion
 
@@ -100,27 +107,30 @@ builder.Services
         options.SaveToken = false;
         options.MapInboundClaims = false;
 
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
 
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings.Key)),
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(
+                            jwtSettings.Key)),
 
-            ValidateIssuer = true,
-            ValidIssuer = jwtSettings.Issuer,
+                ValidateIssuer = true,
+                ValidIssuer = jwtSettings.Issuer,
 
-            ValidateAudience = true,
-            ValidAudience = jwtSettings.Audience,
+                ValidateAudience = true,
+                ValidAudience = jwtSettings.Audience,
 
-            ValidateLifetime = true,
-            RequireExpirationTime = true,
+                ValidateLifetime = true,
+                RequireExpirationTime = true,
 
-            ClockSkew = TimeSpan.FromSeconds(30),
+                ClockSkew = TimeSpan.FromSeconds(30),
 
-            NameClaimType = ClaimTypes.Name,
-            RoleClaimType = ClaimTypes.Role
-        };
+                NameClaimType = ClaimTypes.Name,
+                RoleClaimType = ClaimTypes.Role
+            };
     });
 
 builder.Services.AddAuthorization();
@@ -136,13 +146,28 @@ builder.Services.AddMassTransit(config =>
         var rabbitMqConfig =
             builder.Configuration.GetSection("RabbitMq");
 
+        var rabbitMqHost =
+            rabbitMqConfig["Host"]
+            ?? throw new InvalidOperationException(
+                "A configuração RabbitMq:Host não foi encontrada.");
+
+        var rabbitMqUsername =
+            rabbitMqConfig["Username"]
+            ?? throw new InvalidOperationException(
+                "A configuração RabbitMq:Username não foi encontrada.");
+
+        var rabbitMqPassword =
+            rabbitMqConfig["Password"]
+            ?? throw new InvalidOperationException(
+                "A configuração RabbitMq:Password não foi encontrada.");
+
         cfg.Host(
-            rabbitMqConfig["Host"],
+            rabbitMqHost,
             "/",
             host =>
             {
-                host.Username(rabbitMqConfig["Username"]!);
-                host.Password(rabbitMqConfig["Password"]!);
+                host.Username(rabbitMqUsername);
+                host.Password(rabbitMqPassword);
             });
     });
 });
@@ -150,6 +175,14 @@ builder.Services.AddMassTransit(config =>
 #endregion
 
 var app = builder.Build();
+
+#region Database Migration
+
+await ApplyMigrationsAsync<UsersDbContext>(
+    app,
+    "UsersAPI");
+
+#endregion
 
 #region Pipeline
 
@@ -163,7 +196,8 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 
 var isRunningInContainer =
     string.Equals(
-        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+        Environment.GetEnvironmentVariable(
+            "DOTNET_RUNNING_IN_CONTAINER"),
         "true",
         StringComparison.OrdinalIgnoreCase);
 
@@ -188,3 +222,63 @@ app.MapGet("/health", () =>
 #endregion
 
 app.Run();
+
+static async Task ApplyMigrationsAsync<TContext>(
+    WebApplication app,
+    string serviceName)
+    where TContext : DbContext
+{
+    const int maxAttempts = 10;
+    var retryDelay = TimeSpan.FromSeconds(5);
+
+    var logger = app.Services
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DatabaseMigration");
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            await using var scope =
+                app.Services.CreateAsyncScope();
+
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<TContext>();
+
+            logger.LogInformation(
+                "Aplicando migrations do {ServiceName}. Tentativa {Attempt}/{MaxAttempts}.",
+                serviceName,
+                attempt,
+                maxAttempts);
+
+            await dbContext.Database.MigrateAsync();
+
+            logger.LogInformation(
+                "Migrations do {ServiceName} aplicadas com sucesso.",
+                serviceName);
+
+            return;
+        }
+        catch (Exception exception)
+        {
+            if (attempt == maxAttempts)
+            {
+                logger.LogCritical(
+                    exception,
+                    "Não foi possível aplicar as migrations do {ServiceName} após {MaxAttempts} tentativas.",
+                    serviceName,
+                    maxAttempts);
+
+                throw;
+            }
+
+            logger.LogWarning(
+                exception,
+                "Falha ao aplicar migrations do {ServiceName}. Nova tentativa em {RetrySeconds} segundos.",
+                serviceName,
+                retryDelay.TotalSeconds);
+
+            await Task.Delay(retryDelay);
+        }
+    }
+}

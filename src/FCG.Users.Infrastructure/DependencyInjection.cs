@@ -17,11 +17,25 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var connectionString =
+            configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' was not found.");
+
         services.AddDbContext<UsersDbContext>(options =>
             options.UseSqlServer(
-                configuration.GetConnectionString("DefaultConnection")));
+                connectionString,
+                sqlServerOptions =>
+                {
+                    sqlServerOptions.EnableRetryOnFailure(
+                        maxRetryCount: 10,
+                        maxRetryDelay: TimeSpan.FromSeconds(5),
+                        errorNumbersToAdd: null);
+                }));
 
-        var jwtSection = configuration.GetSection(JwtSettings.SectionName);
+        var jwtSection =
+            configuration.GetSection(
+                JwtSettings.SectionName);
 
         var jwtSettings = new JwtSettings
         {
@@ -39,9 +53,17 @@ public static class DependencyInjection
         services.AddSingleton<IOptions<JwtSettings>>(
             Options.Create(jwtSettings));
 
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
-        services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddScoped<
+            IUserRepository,
+            UserRepository>();
+
+        services.AddScoped<
+            IPasswordHasher,
+            BcryptPasswordHasher>();
+
+        services.AddScoped<
+            ITokenService,
+            JwtTokenService>();
 
         return services;
     }
